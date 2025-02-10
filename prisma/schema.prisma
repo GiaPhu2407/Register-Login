@@ -1,0 +1,52 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Users {
+  idUsers     Int       @id @default(autoincrement())
+  Tentaikhoan String?   @db.VarChar(225)
+  Matkhau     String?   @db.VarChar(225)
+  Hoten       String?   @db.VarChar(225)
+  Sdt         String?   @db.VarChar(15)
+  Diachi      String?   @db.VarChar(45)
+  Email       String?   @db.VarChar(45) @unique
+  idRole      Int?      
+  Ngaydangky  DateTime? @db.Date
+  Token       String?   @db.Text
+  role        Role?     @relation(fields: [idRole], references: [idrole])
+
+  @@map("users")
+}
+
+model Role {
+  idrole         Int             @id @default(autoincrement())
+  Tennguoidung   String?         @db.VarChar(45)
+  RolePermission RolePermission[]
+  users          Users[]
+
+  @@map("role")
+}
+
+model Permission {
+  idPermission   Int             @id @default(autoincrement())
+  TenQuyen       String?         @db.VarChar(45) @unique
+  RolePermission RolePermission[]
+
+  @@map("permission")
+}
+
+model RolePermission {
+  id             Int             @id @default(autoincrement())
+  idPermission   Int
+  idRole         Int
+  role           Role            @relation(fields: [idRole], references: [idrole])
+  permission     Permission      @relation(fields: [idPermission], references: [idPermission])
+
+  @@map("role_permission")
+  @@unique([idPermission, idRole], name: "role_permission_unique")
+}
