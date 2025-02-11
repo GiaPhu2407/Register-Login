@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "../hook/useAuth";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,12 +19,12 @@ export default function RegisterPage() {
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      email: formData.get("email") as string,
-      username: formData.get("username") as string,
-      password: formData.get("password") as string,
-      fullname: formData.get("fullname") as string,
-      phone: formData.get("phone") as string,
-      address: (formData.get("address") as string) || undefined,
+      email: formData.get("email"),
+      username: formData.get("username"),
+      password: formData.get("password"),
+      fullname: formData.get("fullname"),
+      phone: formData.get("phone"),
+      address: formData.get("address"),
     };
 
     try {
@@ -36,15 +38,15 @@ export default function RegisterPage() {
 
       const result = await response.json();
 
-      if (response.ok) {
-        // Store user data
-        localStorage.setItem("userData", JSON.stringify(result.user));
-
-        // Redirect to login
-        router.push("/Login");
-      } else {
-        throw new Error(result.error || "Đăng ký thất bại");
+      if (!response.ok) {
+        throw new Error(result.error || "Registration failed");
       }
+
+      // Store auth data using Zustand
+      login(result.user, result.token);
+
+      // Redirect to dashboard
+      router.push("/Login");
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -61,7 +63,7 @@ export default function RegisterPage() {
           </h2>
 
           {error && (
-            <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 rounded-md">
+            <div className="mb-4 p-4 text-sm text-red-600 bg-red-50 rounded-md">
               {error}
             </div>
           )}
@@ -79,8 +81,7 @@ export default function RegisterPage() {
                 id="email"
                 name="email"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="example@email.com"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 disabled={isLoading}
               />
             </div>
@@ -97,9 +98,7 @@ export default function RegisterPage() {
                 id="username"
                 name="username"
                 required
-                minLength={3}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Tên đăng nhập (ít nhất 3 ký tự)"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 disabled={isLoading}
               />
             </div>
@@ -116,9 +115,7 @@ export default function RegisterPage() {
                 id="password"
                 name="password"
                 required
-                minLength={6}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Mật khẩu (ít nhất 6 ký tự)"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 disabled={isLoading}
               />
             </div>
@@ -135,8 +132,7 @@ export default function RegisterPage() {
                 id="fullname"
                 name="fullname"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Họ và tên của bạn"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 disabled={isLoading}
               />
             </div>
@@ -153,9 +149,7 @@ export default function RegisterPage() {
                 id="phone"
                 name="phone"
                 required
-                pattern="[0-9]{10}"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Số điện thoại (10 số)"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 disabled={isLoading}
               />
             </div>
@@ -170,9 +164,8 @@ export default function RegisterPage() {
               <textarea
                 id="address"
                 name="address"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 rows={3}
-                placeholder="Địa chỉ của bạn (không bắt buộc)"
                 disabled={isLoading}
               />
             </div>
@@ -192,11 +185,11 @@ export default function RegisterPage() {
               )}
             </button>
 
-            <div className="text-center mt-4">
+            <div className="text-center">
               <p className="text-sm text-gray-600">
                 Đã có tài khoản?{" "}
                 <Link
-                  href="/Login"
+                  href="/login"
                   className="font-medium text-indigo-600 hover:text-indigo-500"
                 >
                   Đăng nhập

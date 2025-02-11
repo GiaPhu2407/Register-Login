@@ -4,27 +4,24 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "../hook/useAuth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    usernameOrEmail: "",
-    password: "",
-  });
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      usernameOrEmail: formData.get("usernameOrEmail"),
+      password: formData.get("password"),
+    };
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -32,20 +29,25 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(data),
+        credentials: "include", // Quan trọng: để gửi và nhận cookies
       });
 
-      const data = await response.json();
+      const result = await response.json();
 
-      if (response.ok) {
-        // Store user data in localStorage
-        localStorage.setItem("userData", JSON.stringify(data.user));
-
-        // Redirect based on role
-        router.push(data.user.role === "admin" ? "/admin" : "/dashboard");
-      } else {
-        throw new Error(data.error || "Đăng nhập thất bại");
+      if (!response.ok) {
+        throw new Error(result.error || "Đăng nhập thất bại");
       }
+
+      // Lưu thông tin user và token vào Zustand store
+      login(result.user, result.token);
+
+      // Lưu thông tin user vào localStorage
+      localStorage.setItem("userData", JSON.stringify(result.user));
+      localStorage.setItem("token", result.token);
+
+      // Redirect dựa trên role
+      router.push(result.user.role === "admin" ? "/admin" : "/dashboard");
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -85,8 +87,6 @@ export default function LoginPage() {
               type="text"
               required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              value={formData.usernameOrEmail}
-              onChange={handleChange}
               disabled={isLoading}
             />
           </div>
@@ -104,8 +104,6 @@ export default function LoginPage() {
               type="password"
               required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              value={formData.password}
-              onChange={handleChange}
               disabled={isLoading}
             />
           </div>

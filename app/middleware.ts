@@ -1,110 +1,70 @@
-// import { verifyToken } from "@/lib/auth/token";
-// import { NextResponse } from "next/server";
-// import type { NextRequest } from "next/server";
-
-// export async function middleware(request: NextRequest) {
-//   // Public paths
-//   const publicPaths = ["/", "/Login", "/Register"];
-//   const isPublicPath = publicPaths.some(path =>
-//     request.nextUrl.pathname.startsWith(path)
-//   );
-
-//   if (isPublicPath) {
-//     return NextResponse.next();
-//   }
-
-//   // Get token
-//   const token = request.headers.get("Authorization")?.replace("Bearer ", "") ||
-//                 request.cookies.get("token")?.value;
-
-//   if (!token) {
-//     return NextResponse.redirect(new URL("/Login", request.url));
-//   }
-
-//   // Verify token
-//   const decoded = verifyToken(token);
-//   if (!decoded) {
-//     return NextResponse.redirect(new URL("/Login", request.url));
-//   }
-
-//   // Admin route protection
-//   if (request.nextUrl.pathname.startsWith("/Admin") && decoded.role !== 1) {
-//     return NextResponse.redirect(new URL("/", request.url));
-//   }
-
-//   return NextResponse.next();
-// }
-
-// export const config = {
-//   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
-// };
-
+import { verifyToken } from "@/lib/auth/token";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
 
-const JWT_SECRET: string | undefined = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET is not defined");
-}
-
-const key = new TextEncoder().encode(JWT_SECRET);
-
-const IGNORE_PATHS = [
-  "/api/auth/register",
+// Define public paths that don't require authentication
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/register",
   "/api/auth/login",
-  "/Login",
-  "/Register",
+  "/api/auth/register",
 ];
 
-async function verifyAuth(token: string): Promise<any> {
-  try {
-    const { payload } = await jwtVerify(token, key, {
-      algorithms: ["HS256"],
-    });
-    return payload;
-  } catch (error) {
-    throw new Error("Invalid token");
-  }
-}
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-export async function middleware(req: NextRequest) {
   // Allow public paths
-  if (IGNORE_PATHS.includes(req.nextUrl.pathname)) {
+  if (
+    PUBLIC_PATHS.some((path) =>
+      pathname.toLowerCase().startsWith(path.toLowerCase())
+    )
+  ) {
     return NextResponse.next();
   }
 
-  // Get token from header or cookie
+  // Get token from Authorization header or cookie
   const token =
-    req.headers.get("Authorization")?.split(" ")[1] ||
-    req.cookies.get("token")?.value;
+    request.headers.get("Authorization")?.replace("Bearer ", "") ||
+    request.cookies.get("token")?.value;
 
-  // Redirect to login if no token
   if (!token) {
-    return NextResponse.redirect(new URL("/Login", req.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   try {
     // Verify token
-    const decoded = await verifyAuth(token);
+    const decoded = await verifyToken(token);
 
-    // Add user info to headers
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("X-User-Id", decoded.userId);
-    requestHeaders.set("X-User-Role", decoded.role);
+    if (!decoded) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
 
-    // Continue with added headers
+    // Add user info to request headers
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-user-id", decoded.sub as string);
+    requestHeaders.set("x-user-role", decoded.role as string);
+
+    // Continue with modified headers
     return NextResponse.next({
       request: {
         headers: requestHeaders,
       },
     });
-  } catch (error) {
-    // Redirect to login on invalid token
-    return NextResponse.redirect(new URL("/Login", req.url));
+  } catch {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/protected/:path*", "/profile/:path*"],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
+  ],
 };
