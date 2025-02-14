@@ -3,6 +3,7 @@ import { z } from "zod";
 import { verifyPassword } from "@/lib/auth/password";
 import { generateToken } from "@/lib/auth/token";
 import prisma from "@/prisma/client";
+import { UserRole, getHomeRouteForRole } from "@/lib/auth/roles";
 
 const LoginSchema = z.object({
   usernameOrEmail: z.string().min(1, "Email hoặc tên đăng nhập là bắt buộc"),
@@ -14,7 +15,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = LoginSchema.parse(body);
 
-    // Find user by email or username
     const user = await prisma.users.findFirst({
       where: {
         OR: [
@@ -34,10 +34,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password
     const isValidPassword = await verifyPassword(
       validatedData.password,
-      user.Matkhau || ""
+      user.Matkhau ?? ""
     );
 
     if (!isValidPassword) {
@@ -47,38 +46,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
     const token = await generateToken({
-      sub: user.idUsers,
-      email: user.Email || "",
-      role: user.idRole ?? 2,
-      username: user.Tentaikhoan,
+      sub: String(user.idUsers),
+      email: user.Email ?? "",
+      role: user.idRole ?? UserRole.CUSTOMER,
+      username: user.Tentaikhoan ?? "",
     });
 
-    // Update user's token in database
     await prisma.users.update({
       where: { idUsers: user.idUsers },
       data: { Token: token },
     });
 
-    // Prepare response
+    const finalUserRole = user.idRole ?? UserRole.CUSTOMER;
+    const homeRoute = getHomeRouteForRole(finalUserRole);
+
     const response = NextResponse.json({
       user: {
         id: user.idUsers,
         email: user.Email,
         username: user.Tentaikhoan,
-        role: user.role?.Tennguoidung || "user",
+        role: user.role?.Tennguoidung ?? "customer",
         fullname: user.Hoten,
+        roleId: finalUserRole,
       },
       token,
+      redirectTo: homeRoute,
     });
 
-    // Set HTTP-only cookie
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24,
     });
 
     return response;

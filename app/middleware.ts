@@ -1,8 +1,8 @@
 import { verifyToken } from "@/lib/auth/token";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getHomeRouteForRole } from "@/lib/auth/roles";
 
-// Define public paths that don't require authentication
 const PUBLIC_PATHS = [
   "/",
   "/login",
@@ -10,6 +10,12 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/register",
 ];
+
+const ROLE_PATHS = {
+  ADMIN: ["/Admin"],
+  STAFF: ["/staff"],
+  CUSTOMER: ["/customer"],
+};
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -40,12 +46,33 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
+    const userRole = decoded.role;
+    const roleId = Number(userRole);
+
+    // Check if user has access to the requested path
+    if (pathname.startsWith("/admin") && roleId !== 1) {
+      return NextResponse.redirect(
+        new URL(getHomeRouteForRole(roleId), request.url)
+      );
+    }
+
+    if (pathname.startsWith("/staff") && roleId !== 2) {
+      return NextResponse.redirect(
+        new URL(getHomeRouteForRole(roleId), request.url)
+      );
+    }
+
+    if (pathname.startsWith("/customer") && roleId !== 3) {
+      return NextResponse.redirect(
+        new URL(getHomeRouteForRole(roleId), request.url)
+      );
+    }
+
     // Add user info to request headers
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-user-id", decoded.sub as string);
-    requestHeaders.set("x-user-role", decoded.role as string);
+    requestHeaders.set("x-user-id", decoded.sub);
+    requestHeaders.set("x-user-role", String(decoded.role)); // Convert role number to string explicitly
 
-    // Continue with modified headers
     return NextResponse.next({
       request: {
         headers: requestHeaders,
@@ -57,14 +84,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|public/).*)"],
 };

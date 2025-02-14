@@ -20,27 +20,49 @@
 //     throw new Error("Invalid token");
 //   }
 // };
-import { SignJWT, jwtVerify } from "jose";
+// import { SignJWT, jwtVerify } from "jose";
+
+// const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+// const key = new TextEncoder().encode(JWT_SECRET);
+
+// export async function generateToken(payload: any) {
+//   const token = await new SignJWT(payload)
+//     .setProtectedHeader({ alg: "HS256" })
+//     .setExpirationTime("24h")
+//     .sign(key);
+
+//   return token;
+// }
+
+// export async function verifyToken(token: string) {
+//   try {
+//     const { payload } = await jwtVerify(token, key, {
+//       algorithms: ["HS256"],
+//     });
+//     return payload;
+//   } catch (error) {
+//     return null;
+//   }
+// }
+import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-const key = new TextEncoder().encode(JWT_SECRET);
 
-export async function generateToken(payload: any) {
-  const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("24h")
-    .sign(key);
-
-  return token;
+interface TokenPayload {
+  sub: string;
+  email: string;
+  role: number;
+  username: string;
 }
 
-export async function verifyToken(token: string) {
+export async function generateToken(payload: TokenPayload): Promise<string> {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+}
+
+export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, key, {
-      algorithms: ["HS256"],
-    });
-    return payload;
-  } catch (error) {
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+  } catch {
     return null;
   }
 }

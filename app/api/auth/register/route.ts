@@ -3,6 +3,7 @@ import { z } from "zod";
 import { hashPassword } from "@/lib/auth/password";
 import { generateToken } from "@/lib/auth/token";
 import prisma from "@/prisma/client";
+import { UserRole, getHomeRouteForRole, getRoleName } from "@/lib/auth/roles";
 
 const RegisterSchema = z.object({
   email: z.string().email("Email không hợp lệ"),
@@ -25,12 +26,86 @@ const RegisterSchema = z.object({
   address: z.string().optional(),
 });
 
+function determineUserRole(email: string, username: string): UserRole {
+  const emailLower = email.toLowerCase();
+  const usernameLower = username.toLowerCase();
+
+  const adminPatterns = {
+    email: ["@admin.", "admin@", ".admin@"],
+    username: ["admin_", "_admin_", "administrator"],
+    domains: ["admin.com", "admin.net", "admin.org"],
+  };
+
+  const staffPatterns = {
+    email: ["@staff.", "staff@", ".staff@", "@nhanvien.", "nhanvien@"],
+    username: ["staff_", "_staff_", "nv_", "_nv_"],
+    domains: ["staff.com", "staff.net", "nhanvien.com", "company-staff.com"],
+  };
+
+  const adminKeywords = ["superadmin", "systemadmin", "sysadmin", "rootadmin"];
+  const staffKeywords = [
+    "employee",
+    "personnel",
+    "officer",
+    "nhanvien",
+    "staffmember",
+  ];
+
+  const isAdmin =
+    adminPatterns.email.some((pattern) => emailLower.includes(pattern)) ||
+    adminPatterns.username.some((pattern) => usernameLower.includes(pattern)) ||
+    adminPatterns.domains.some((domain) => emailLower.endsWith(domain)) ||
+    adminKeywords.some(
+      (keyword) =>
+        emailLower.includes(keyword) || usernameLower.includes(keyword)
+    );
+
+  if (isAdmin) {
+    return UserRole.ADMIN;
+  }
+
+  const isStaff =
+    staffPatterns.email.some((pattern) => emailLower.includes(pattern)) ||
+    staffPatterns.username.some((pattern) => usernameLower.includes(pattern)) ||
+    staffPatterns.domains.some((domain) => emailLower.endsWith(domain)) ||
+    staffKeywords.some(
+      (keyword) =>
+        emailLower.includes(keyword) || usernameLower.includes(keyword)
+    );
+
+  if (isStaff) {
+    return UserRole.STAFF;
+  }
+
+  const preventAdminStaff = (email: string, username: string): boolean => {
+    const restrictedTerms = [
+      "admin",
+      "staff",
+      "nhanvien",
+      "employee",
+      "officer",
+    ];
+    return !restrictedTerms.some(
+      (term) =>
+        email.toLowerCase().includes(term) ||
+        username.toLowerCase().includes(term)
+    );
+  };
+
+  if (!preventAdminStaff(email, username)) {
+    throw new Error(
+      "Email hoặc tên đăng nhập không hợp lệ. Vui lòng không sử dụng các từ khóa được bảo vệ."
+    );
+  }
+
+  return UserRole.CUSTOMER;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = RegisterSchema.parse(body);
 
-    // Check for existing user
     const existingUser = await prisma.users.findFirst({
       where: {
         OR: [
@@ -47,10 +122,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
+    const assignedRole = determineUserRole(
+      validatedData.email,
+      validatedData.username
+    );
     const hashedPassword = await hashPassword(validatedData.password);
 
-    // Create new user
     const user = await prisma.users.create({
       data: {
         Email: validatedData.email,
@@ -59,45 +136,50 @@ export async function POST(request: NextRequest) {
         Hoten: validatedData.fullname,
         Sdt: validatedData.phone,
         Diachi: validatedData.address || null,
-        idRole: 2, // Default user role
+        idRole: assignedRole,
         Ngaydangky: new Date(),
         Token: null,
       },
+      include: {
+        role: true,
+      },
     });
 
-    // Generate JWT token
     const token = await generateToken({
-      sub: user.idUsers,
-      email: user.Email || "",
-      role: user.idRole ?? 2,
-      username: user.Tentaikhoan,
+      sub: String(user.idUsers),
+      email: user.Email ?? "",
+      role: user.idRole ?? UserRole.CUSTOMER,
+      username: user.Tentaikhoan ?? "",
     });
 
-    // Update user's token
     await prisma.users.update({
       where: { idUsers: user.idUsers },
       data: { Token: token },
     });
 
-    // Prepare response
+    const finalUserRole = user.idRole ?? UserRole.CUSTOMER;
+    const homeRoute = getHomeRouteForRole(finalUserRole);
+    const roleName = getRoleName(finalUserRole);
+
     const response = NextResponse.json({
-      message: "Đăng ký thành công",
+      message: `Đăng ký thành công với quyền ${roleName}`,
       user: {
         id: user.idUsers,
         email: user.Email,
         username: user.Tentaikhoan,
         fullname: user.Hoten,
-        role: "user",
+        role: roleName,
+        roleId: finalUserRole,
       },
       token,
+      redirectTo: homeRoute,
     });
 
-    // Set HTTP-only cookie
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24,
     });
 
     return response;

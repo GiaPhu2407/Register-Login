@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../hook/useAuth";
 
 export default function LoginPage() {
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,7 +31,7 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
-        credentials: "include", // Quan trọng: để gửi và nhận cookies
+        credentials: "include",
       });
 
       const result = await response.json();
@@ -39,15 +40,10 @@ export default function LoginPage() {
         throw new Error(result.error || "Đăng nhập thất bại");
       }
 
-      // Lưu thông tin user và token vào Zustand store
       login(result.user, result.token);
-
-      // Lưu thông tin user vào localStorage
       localStorage.setItem("userData", JSON.stringify(result.user));
       localStorage.setItem("token", result.token);
-
-      // Redirect dựa trên role
-      router.push(result.user.role === "admin" ? "/admin" : "/dashboard");
+      router.push(result.redirectTo);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -98,14 +94,27 @@ export default function LoginPage() {
             >
               Mật khẩu
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              disabled={isLoading}
-            />
+            <div className="mt-1 relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <Eye className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button

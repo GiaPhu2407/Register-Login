@@ -1,40 +1,26 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+"use client";
+
+import { create } from "zustand";
 
 interface User {
   id: number;
   email: string;
   username: string;
   role: string;
+  fullname: string;
+  roleId?: number;
 }
 
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('userData');
-
-    if (token && userData) {
-      setUser(JSON.parse(userData));
-    }
-    setLoading(false);
-  }, []);
-
-  const login = (token: string, userData: User) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('userData', JSON.stringify(userData));
-    setUser(userData);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
-    setUser(null);
-    router.push('/Login');
-  };
-
-  return { user, loading, login, logout };
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  login: (user: User, token: string) => void;
+  logout: () => void;
 }
+
+export const useAuth = create<AuthState>((set) => ({
+  user: null,
+  token: null,
+  login: (user, token) => set({ user, token }),
+  logout: () => set({ user: null, token: null }),
+}));
