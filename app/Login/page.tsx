@@ -132,14 +132,20 @@ export default function LoginPage() {
             )}
           </button>
 
-          <div className="text-center">
+          <div className="text-center ">
             <p className="text-sm text-gray-600">
               Chưa có tài khoản?{" "}
               <Link
-                href="/register"
+                href="/Register"
                 className="font-medium text-indigo-600 hover:text-indigo-500"
               >
                 Đăng ký ngay
+              </Link>
+              <Link
+                href="/ForgotPassword"
+                className="font-medium text-indigo-600 hover:text-indigo-500 ml-2"
+              >
+                Quên Mật Khẩu
               </Link>
             </p>
           </div>

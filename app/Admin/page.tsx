@@ -1,12 +1,14 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, ShoppingBag, BarChart3, Settings, LogOut } from "lucide-react";
+import { Users, ShoppingBag, BarChart3, Settings } from "lucide-react";
+import ProfileSettings from "../component/ProfileSetting";
+import ProfileDropdown from "../component/ProfileDropdown";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     const storedUserData = localStorage.getItem("userData");
@@ -18,7 +20,7 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     localStorage.removeItem("userData");
     localStorage.removeItem("token");
-    router.push("/Login");
+    router.push("/login");
   };
 
   if (!userData) {
@@ -59,30 +61,25 @@ export default function AdminDashboard() {
           </nav>
 
           <div className="p-6 border-t">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <span className="text-indigo-600 font-semibold">
-                  {userData.username?.[0]?.toUpperCase()}
-                </span>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700">
-                  {userData.fullname}
-                </p>
-                <p className="text-xs text-gray-500">{userData.email}</p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-lg"
-            >
-              <LogOut className="w-5 h-5 mr-4" />
-              Đăng xuất
-            </button>
+            <ProfileDropdown
+              userData={userData}
+              onLogout={handleLogout}
+              onProfileClick={() => setShowProfile(true)}
+            />
           </div>
         </div>
       </div>
+
+      {/* Profile Settings Modal */}
+      {showProfile && (
+        <ProfileSettings
+          userData={userData}
+          onClose={() => setShowProfile(false)}
+          onUpdate={function (): void {
+            throw new Error("Function not implemented.");
+          }}
+        />
+      )}
 
       {/* Main Content */}
       <div className="ml-64 p-8">

@@ -1,12 +1,14 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingBag, Heart, User, Bell, Search, LogOut } from "lucide-react";
+import { ShoppingBag, Heart, Bell, Search, User, LogOut } from "lucide-react";
+import ProfileSettings from "../component/ProfileSetting";
+import ProfileDropdown from "../component/ProfileDropdown";
 
 export default function CustomerDashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     const storedUserData = localStorage.getItem("userData");
@@ -18,7 +20,7 @@ export default function CustomerDashboard() {
   const handleLogout = () => {
     localStorage.removeItem("userData");
     localStorage.removeItem("token");
-    router.push("/login");
+    router.push("/Login");
   };
 
   if (!userData) {
@@ -62,6 +64,7 @@ export default function CustomerDashboard() {
                 </a>
               </div>
             </div>
+
             <div className="flex items-center">
               <div className="flex-1 flex items-center justify-center px-2 lg:ml-6 lg:justify-end">
                 <div className="max-w-lg w-full lg:max-w-xs">
@@ -94,22 +97,28 @@ export default function CustomerDashboard() {
                   <Bell className="h-6 w-6" />
                 </button>
                 <div className="ml-3 relative">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                      <span className="text-indigo-600 font-semibold">
-                        {userData.username?.[0]?.toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="ml-3 text-gray-700 text-sm font-medium hidden md:block">
-                      {userData.fullname}
-                    </span>
-                  </div>
+                  <ProfileDropdown
+                    userData={userData}
+                    onLogout={handleLogout}
+                    onProfileClick={() => setShowProfile(true)}
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Profile Settings Modal */}
+      {showProfile && (
+        <ProfileSettings
+          userData={userData}
+          onClose={() => setShowProfile(false)}
+          onUpdate={function (): void {
+            throw new Error("Function not implemented.");
+          }}
+        />
+      )}
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* User Profile Summary */}

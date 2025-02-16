@@ -6,8 +6,8 @@ import prisma from "@/prisma/client";
 import { UserRole, getHomeRouteForRole } from "@/lib/auth/roles";
 
 const LoginSchema = z.object({
-  usernameOrEmail: z.string().min(1, "Email hoặc tên đăng nhập là bắt buộc"),
-  password: z.string().min(1, "Mật khẩu là bắt buộc"),
+  usernameOrEmail: z.string().min(1, "Email or username is required"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export async function POST(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: "Người dùng không tồn tại" },
+        { error: "User does not exist" },
         { status: 401 }
       );
     }
@@ -40,22 +40,26 @@ export async function POST(request: NextRequest) {
     );
 
     if (!isValidPassword) {
-      return NextResponse.json(
-        { error: "Mật khẩu không chính xác" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
     }
 
+    // Make sure to include phone and address in the token payload
     const token = await generateToken({
       sub: String(user.idUsers),
       email: user.Email ?? "",
       role: user.idRole ?? UserRole.CUSTOMER,
       username: user.Tentaikhoan ?? "",
+      phone: user.Sdt ?? "",
+      address: user.Diachi ?? "",
     });
 
     await prisma.users.update({
       where: { idUsers: user.idUsers },
-      data: { Token: token },
+      data: {
+        Token: token,
+        Sdt: user.Sdt ?? "", // Ensure phone number is updated
+        Diachi: user.Diachi ?? "", // Ensure address is updated
+      },
     });
 
     const finalUserRole = user.idRole ?? UserRole.CUSTOMER;
@@ -68,6 +72,8 @@ export async function POST(request: NextRequest) {
         username: user.Tentaikhoan,
         role: user.role?.Tennguoidung ?? "customer",
         fullname: user.Hoten,
+        phone: user.Sdt ?? "", // Explicitly include phone
+        address: user.Diachi ?? "", // Explicitly include address
         roleId: finalUserRole,
       },
       token,
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24,
+      maxAge: 60 * 60 * 24, // 24 hours
     });
 
     return response;
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
-          error: "Dữ liệu không hợp lệ",
+          error: "Invalid data",
           details: error.errors.map((err) => ({
             field: err.path.join("."),
             message: err.message,
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Lỗi trong quá trình đăng nhập" },
+      { error: "An error occurred during login" },
       { status: 500 }
     );
   }

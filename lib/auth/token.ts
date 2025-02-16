@@ -48,11 +48,13 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
-interface TokenPayload {
+export interface TokenPayload {
   sub: string;
   email: string;
   role: number;
   username: string;
+  phone?: string;
+  address?: string;
 }
 
 export async function generateToken(payload: TokenPayload): Promise<string> {
@@ -64,5 +66,21 @@ export async function verifyToken(token: string): Promise<TokenPayload | null> {
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch {
     return null;
+  }
+}
+
+export async function generateResetToken(
+  userId: number,
+  code: string
+): Promise<string> {
+  return jwt.sign({ userId, code }, JWT_SECRET, { expiresIn: "15m" });
+}
+
+export async function verifyResetToken(token: string): Promise<boolean> {
+  try {
+    jwt.verify(token, JWT_SECRET);
+    return true;
+  } catch {
+    return false;
   }
 }

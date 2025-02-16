@@ -17,6 +17,9 @@ model Users {
   Email       String?   @db.VarChar(45) @unique
   idRole      Int?      
   Ngaydangky  DateTime? @db.Date
+  ResetToken      String?   // Added for password reset
+  ResetCode       String?   // Added for password reset
+  ResetTokenExpiry DateTime? // Added for password reset
   Token       String?   @db.Text
   role        Role?     @relation(fields: [idRole], references: [idrole])
 

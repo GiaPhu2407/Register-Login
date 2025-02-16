@@ -1,12 +1,14 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Package, ClipboardList, Users, Bell, LogOut } from "lucide-react";
+import ProfileSettings from "../component/ProfileSetting";
+import ProfileDropdown from "../component/ProfileDropdown";
 
 export default function StaffDashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     const storedUserData = localStorage.getItem("userData");
@@ -18,7 +20,7 @@ export default function StaffDashboard() {
   const handleLogout = () => {
     localStorage.removeItem("userData");
     localStorage.removeItem("token");
-    router.push("/login");
+    router.push("/Login");
   };
 
   if (!userData) {
@@ -44,22 +46,28 @@ export default function StaffDashboard() {
                 <Bell className="h-6 w-6" />
               </button>
 
-              <div className="ml-4 relative flex items-center">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-indigo-600 font-semibold">
-                      {userData.username?.[0]?.toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="ml-3 text-gray-700 text-sm font-medium">
-                    {userData.fullname}
-                  </span>
-                </div>
+              <div className="ml-4 relative">
+                <ProfileDropdown
+                  userData={userData}
+                  onLogout={handleLogout}
+                  onProfileClick={() => setShowProfile(true)}
+                />
               </div>
             </div>
           </div>
         </div>
       </nav>
+
+      {/* Profile Settings Modal */}
+      {showProfile && (
+        <ProfileSettings
+          userData={userData}
+          onClose={() => setShowProfile(false)}
+          onUpdate={function (): void {
+            throw new Error("Function not implemented.");
+          }}
+        />
+      )}
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Quick Actions */}
