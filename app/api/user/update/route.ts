@@ -11,7 +11,7 @@ const UpdateProfileSchema = z.object({
   address: z.string().min(1, "Địa chỉ không được để trống"),
 });
 
-export async function PUT(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     // Parse và validate input data
     const body = await req.json();
