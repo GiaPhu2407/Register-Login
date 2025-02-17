@@ -1,5 +1,7 @@
+"use client";
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, Key } from "lucide-react";
+import Link from "next/link";
 
 interface ProfileSettingsProps {
   userData: {
@@ -11,16 +13,19 @@ interface ProfileSettingsProps {
     address?: string;
   };
   onClose: () => void;
-  onUpdate: () => void;
+  onUpdate: (updatedData: any) => void;
+  onChangePassword: () => void;
 }
 
 export default function ProfileSettings({
   userData,
   onClose,
   onUpdate,
+  onChangePassword,
 }: ProfileSettingsProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
+    username: userData.username,
     fullname: userData.fullname,
     phone: userData.phone || "",
     address: userData.address || "",
@@ -43,26 +48,116 @@ export default function ProfileSettings({
     setError("");
 
     try {
+      console.log("Submitting data:", formData);
+
       const response = await fetch("/api/user/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // Thêm dòng này
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          username: formData.username,
+          fullname: formData.fullname,
+          phone: formData.phone,
+          address: formData.address,
+        }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Có lỗi xảy ra khi cập nhật thông tin");
+        if (data.details) {
+          const errorMessage = data.details
+            .map((err: any) => `${err.field}: ${err.message}`)
+            .join(", ");
+          throw new Error(errorMessage);
+        }
+        throw new Error(
+          data.error || "An error occurred while updating information"
+        );
       }
 
       setIsEditing(false);
-      onUpdate(); // Refresh user data
+
+      // Process the returned user data
+      if (data.user) {
+        // Update local storage with new user data
+        updateLocalStorage(data.user);
+
+        // Update parent component with new user data
+        onUpdate(data.user);
+
+        // Update local form data state
+        setFormData({
+          username: data.user.username,
+          fullname: data.user.fullname,
+          phone: data.user.phone || "",
+          address: data.user.address || "",
+        });
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Có lỗi xảy ra");
+      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("Error details:", err);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to update user data in local storage
+  const updateLocalStorage = (updatedUser: any) => {
+    try {
+      // Get existing user data from localStorage (if any)
+      const storedUserData = localStorage.getItem("userData");
+
+      if (storedUserData) {
+        // Parse the existing data
+        const userData = JSON.parse(storedUserData);
+
+        // Update only the fields that can be changed
+        const updatedUserData = {
+          ...userData,
+          username: updatedUser.username,
+          fullname: updatedUser.fullname,
+          phone: updatedUser.phone,
+          address: updatedUser.address,
+        };
+
+        // Save the updated data back to localStorage
+        localStorage.setItem("userData", JSON.stringify(updatedUserData));
+        console.log("User data updated in localStorage");
+      } else {
+        // If no data exists yet, store the complete user object
+        localStorage.setItem("userData", JSON.stringify(updatedUser));
+        console.log("User data saved to localStorage for the first time");
+      }
+    } catch (error) {
+      console.error("Error updating localStorage:", error);
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setFormData({
+      username: userData.username,
+      fullname: userData.fullname,
+      phone: userData.phone || "",
+      address: userData.address || "",
+    });
+    setError("");
+  };
+
+  // Helper function to get role display name
+  const getRoleDisplayName = (roleId: string) => {
+    const roleMap: Record<string, string> = {
+      admin: "Admin",
+      staff: "Staff",
+      user: "User",
+      nhanvien: "Nhân Viên",
+    };
+
+    const normalizedRole = roleId.toLowerCase();
+    return roleMap[normalizedRole] || roleId;
   };
 
   return (
@@ -70,7 +165,7 @@ export default function ProfileSettings({
       <div className="bg-white rounded-lg w-full max-w-2xl mx-4">
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
-            Thông tin cá nhân
+            Profile Settings
           </h2>
           <button
             onClick={onClose}
@@ -90,19 +185,23 @@ export default function ProfileSettings({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Tên đăng nhập
+                Username
               </label>
               <input
                 type="text"
-                value={userData.username}
-                readOnly
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                readOnly={!isEditing}
+                className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm ${
+                  isEditing ? "bg-white" : "bg-gray-50"
+                }`}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Họ và tên
+                Full Name
               </label>
               <input
                 type="text"
@@ -130,7 +229,7 @@ export default function ProfileSettings({
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Số điện thoại
+                Phone Number
               </label>
               <input
                 type="tel"
@@ -146,7 +245,7 @@ export default function ProfileSettings({
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700">
-                Địa chỉ
+                Address
               </label>
               <textarea
                 name="address"
@@ -162,16 +261,25 @@ export default function ProfileSettings({
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Vai trò
+                Role
               </label>
               <input
                 type="text"
-                value={
-                  userData.role.charAt(0).toUpperCase() + userData.role.slice(1)
-                }
+                value={getRoleDisplayName(userData.role)}
                 readOnly
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50"
               />
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={onChangePassword}
+                className="mt-1 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <Key className="w-4 h-4 mr-2" />
+                <Link href={"/ChangePassword"}>Change Password</Link>
+              </button>
             </div>
           </div>
         </form>
@@ -181,11 +289,11 @@ export default function ProfileSettings({
             <>
               <button
                 type="button"
-                onClick={() => setIsEditing(false)}
+                onClick={handleCancel}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
                 disabled={isLoading}
               >
-                Hủy
+                Cancel
               </button>
               <button
                 type="submit"
@@ -193,7 +301,7 @@ export default function ProfileSettings({
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
                 disabled={isLoading}
               >
-                {isLoading ? "Đang cập nhật..." : "Lưu thay đổi"}
+                {isLoading ? "Updating..." : "Save Changes"}
               </button>
             </>
           ) : (
@@ -203,13 +311,13 @@ export default function ProfileSettings({
                 onClick={() => setIsEditing(true)}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
               >
-                Chỉnh sửa thông tin
+                Edit Profile
               </button>
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
               >
-                Đóng
+                Close
               </button>
             </>
           )}

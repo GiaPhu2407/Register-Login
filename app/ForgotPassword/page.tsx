@@ -1,11 +1,13 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail } from "lucide-react";
+import { Mail, Phone, Lock } from "lucide-react";
 
 export default function ForgotPassword() {
   const router = useRouter();
+  const [method, setMethod] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [resetCode, setResetCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState(1);
@@ -21,7 +23,10 @@ export default function ForgotPassword() {
       const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          method,
+          contact: method === "email" ? email : phone,
+        }),
       });
 
       const data = await response.json();
@@ -30,10 +35,14 @@ export default function ForgotPassword() {
         throw new Error(data.error || "Failed to send reset code");
       }
 
-      setMessage("Reset code sent to your email");
+      setMessage(
+        `Mã xác nhận đã được gửi đến ${
+          method === "email" ? "email" : "số điện thoại"
+        } của bạn`
+      );
       setStep(2);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      setError(error instanceof Error ? error.message : "Đã xảy ra lỗi");
     }
   };
 
@@ -47,7 +56,8 @@ export default function ForgotPassword() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
+          method,
+          contact: method === "email" ? email : phone,
           code: resetCode,
           newPassword,
         }),
@@ -59,12 +69,12 @@ export default function ForgotPassword() {
         throw new Error(data.error || "Failed to reset password");
       }
 
-      setMessage("Password reset successfully");
+      setMessage("Đặt lại mật khẩu thành công");
       setTimeout(() => {
         router.push("/Login");
       }, 2000);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      setError(error instanceof Error ? error.message : "Đã xảy ra lỗi");
     }
   };
 
@@ -77,7 +87,7 @@ export default function ForgotPassword() {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             {step === 1
-              ? "Nhập email của bạn để nhận mã xác nhận"
+              ? "Chọn phương thức xác thực"
               : "Nhập mã xác nhận và mật khẩu mới"}
           </p>
         </div>
@@ -96,26 +106,65 @@ export default function ForgotPassword() {
 
         {step === 1 ? (
           <form onSubmit={handleRequestReset} className="mt-8 space-y-6">
+            <div className="flex justify-center space-x-4 mb-6">
+              <button
+                type="button"
+                onClick={() => setMethod("email")}
+                className={`px-4 py-2 rounded-md ${
+                  method === "email"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+              >
+                <Mail className="inline-block mr-2 h-5 w-5" />
+                Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setMethod("phone")}
+                className={`px-4 py-2 rounded-md ${
+                  method === "phone"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+              >
+                <Phone className="inline-block mr-2 h-5 w-5" />
+                Số điện thoại
+              </button>
+            </div>
+
             <div>
               <label
-                htmlFor="email"
+                htmlFor={method}
                 className="block text-sm font-medium text-gray-700"
               >
-                Email
+                {method === "email" ? "Email" : "Số điện thoại"}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  {method === "email" ? (
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  )}
                 </div>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id={method}
+                  name={method}
+                  type={method === "email" ? "email" : "tel"}
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={method === "email" ? email : phone}
+                  onChange={(e) =>
+                    method === "email"
+                      ? setEmail(e.target.value)
+                      : setPhone(e.target.value)
+                  }
                   className="appearance-none block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Nhập email của bạn"
+                  placeholder={
+                    method === "email"
+                      ? "Nhập email của bạn"
+                      : "Nhập số điện thoại của bạn"
+                  }
                 />
               </div>
             </div>
@@ -157,16 +206,21 @@ export default function ForgotPassword() {
               >
                 Mật khẩu mới
               </label>
-              <input
-                id="newPassword"
-                name="newPassword"
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Nhập mật khẩu mới"
-              />
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="newPassword"
+                  name="newPassword"
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="appearance-none block w-full pl-10 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="Nhập mật khẩu mới"
+                />
+              </div>
             </div>
 
             <div>
@@ -182,7 +236,7 @@ export default function ForgotPassword() {
 
         <div className="text-center">
           <button
-            onClick={() => router.push("/login")}
+            onClick={() => router.push("/Login")}
             className="text-sm text-indigo-600 hover:text-indigo-500"
           >
             Quay lại đăng nhập

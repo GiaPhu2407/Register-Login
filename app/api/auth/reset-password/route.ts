@@ -1,88 +1,96 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/prisma/client";
-import { hashPassword } from "@/lib/auth/password";
-import { verifyResetToken } from "@/lib/auth/token";
 
-const ResetPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  code: z.string().length(6, "Invalid reset code"),
-  newPassword: z
-    .string()
-    .min(6, "Password must be at least 6 characters")
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      "Password must contain at least 1 uppercase letter, 1 lowercase letter, and 1 number"
-    ),
+const UpdateProfileSchema = z.object({
+  username: z.string().min(2, "Username phải có ít nhất 2 ký tự"),
+  fullname: z.string().min(2, "Họ tên phải có ít nhất 2 ký tự"),
+  phone: z.string().regex(/^[0-9]{10}$/, "Số điện thoại không hợp lệ"),
+  address: z.string().min(1, "Địa chỉ không được để trống"),
 });
 
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const validatedData = ResetPasswordSchema.parse(body);
+    const token = request.cookies.get("token")?.value;
 
-    const user = await prisma.users.findUnique({
-      where: { Email: validatedData.email },
+    if (!token) {
+      return NextResponse.json(
+        { error: "Bạn cần đăng nhập để thực hiện thao tác này" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    console.log("Received data:", body); // Log để debug
+
+    const validatedData = UpdateProfileSchema.parse(body);
+
+    const user = await prisma.users.findFirst({
+      where: { Token: token },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    if (
-      !user.ResetToken ||
-      !user.ResetCode ||
-      !user.ResetTokenExpiry ||
-      user.ResetCode !== validatedData.code ||
-      new Date() > new Date(user.ResetTokenExpiry)
-    ) {
       return NextResponse.json(
-        { error: "Invalid or expired reset code" },
-        { status: 400 }
+        { error: "Không tìm thấy thông tin người dùng" },
+        { status: 404 }
       );
     }
 
-    const isValidToken = await verifyResetToken(user.ResetToken);
-    if (!isValidToken) {
-      return NextResponse.json(
-        { error: "Invalid reset token" },
-        { status: 400 }
-      );
+    // Kiểm tra username đã tồn tại chưa (nếu username thay đổi)
+    if (validatedData.username !== user.Tentaikhoan) {
+      const existingUser = await prisma.users.findFirst({
+        where: { Tentaikhoan: validatedData.username },
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "Username đã tồn tại" },
+          { status: 400 }
+        );
+      }
     }
 
-    const hashedPassword = await hashPassword(validatedData.newPassword);
-
-    await prisma.users.update({
+    // Cập nhật thông tin
+    const updatedUser = await prisma.users.update({
       where: { idUsers: user.idUsers },
       data: {
-        Matkhau: hashedPassword,
-        ResetToken: null,
-        ResetCode: null,
-        ResetTokenExpiry: null,
+       Tentaikhoan: validatedData.username,
+        Hoten: validatedData.fullname,
+        Sdt: validatedData.phone,
+        Diachi: validatedData.address,
       },
     });
 
     return NextResponse.json({
-      message: "Password reset successfully",
+      message: "Cập nhật thông tin thành công",
+      user: {
+        username: updatedUser.Tentaikhoan,
+        fullname: updatedUser.Hoten,
+        phone: updatedUser.Sdt,
+        address: updatedUser.Diachi,
+      },
     });
   } catch (error) {
-    console.error("Reset password error:", error);
+    console.error("Update profile error:", error);
 
     if (error instanceof z.ZodError) {
+      const errorDetails = error.errors.map((err) => ({
+        field: err.path.join("."),
+        message: err.message,
+      }));
+      console.log("Validation errors:", errorDetails); // Log để debug
+
       return NextResponse.json(
         {
-          error: "Invalid data",
-          details: error.errors.map((err) => ({
-            field: err.path.join("."),
-            message: err.message,
-          })),
+          error: "Dữ liệu không hợp lệ",
+          details: errorDetails,
         },
         { status: 400 }
       );
     }
 
     return NextResponse.json(
-      { error: "An error occurred while resetting password" },
+      { error: "Đã có lỗi xảy ra khi cập nhật thông tin" },
       { status: 500 }
     );
   }

@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { Package, ClipboardList, Users, Bell, LogOut } from "lucide-react";
 import ProfileSettings from "../component/ProfileSetting";
 import ProfileDropdown from "../component/ProfileDropdown";
+import ChangePassword from "../ChangePassword/page";
 
 export default function StaffDashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     const storedUserData = localStorage.getItem("userData");
@@ -63,8 +65,23 @@ export default function StaffDashboard() {
         <ProfileSettings
           userData={userData}
           onClose={() => setShowProfile(false)}
-          onUpdate={function (): void {
-            throw new Error("Function not implemented.");
+          onUpdate={() => {
+            // Handle profile update
+            console.log("Profile updated");
+          }}
+          onChangePassword={() => {
+            setShowProfile(false);
+            setShowChangePassword(true);
+          }}
+        />
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <ChangePassword
+          onClose={() => {
+            setShowChangePassword(false);
+            setShowProfile(true);
           }}
         />
       )}

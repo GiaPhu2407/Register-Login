@@ -1,6 +1,9 @@
+import prisma from "@/prisma/client";
+import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import prisma from "@/prisma/client";
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const UpdateProfileSchema = z.object({
   fullname: z.string().min(2, "Họ tên phải có ít nhất 2 ký tự"),
@@ -8,34 +11,53 @@ const UpdateProfileSchema = z.object({
   address: z.string().min(1, "Địa chỉ không được để trống"),
 });
 
-export async function PUT(request: NextRequest) {
+export async function PUT(req: NextRequest) {
   try {
-    const token = request.cookies.get("token")?.value;
+    // Parse và validate input data
+    const body = await req.json();
+    const validatedData = UpdateProfileSchema.parse(body);
 
-    if (!token) {
+    if (!JWT_SECRET) {
       return NextResponse.json(
-        { error: "Bạn cần đăng nhập để thực hiện thao tác này" },
+        { message: "JWT_SECRET chưa được định nghĩa" },
+        { status: 404 }
+      );
+    }
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { message: "token không tồn tại" },
         { status: 401 }
       );
     }
 
-    const body = await request.json();
-    const validatedData = UpdateProfileSchema.parse(body);
+    const token = authHeader.split(" ")[1];
 
-    // Tìm user dựa trên token
+    // Xác thực token
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const username = decoded.username;
+
+    if (!username) {
+      return NextResponse.json(
+        { message: "người dùng không hợp lệ trong Token" },
+        { status: 404 }
+      );
+    }
+
     const user = await prisma.users.findFirst({
-      where: { Token: token },
+      where: { Tentaikhoan: username },
     });
 
     if (!user) {
       return NextResponse.json(
-        { error: "Không tìm thấy thông tin người dùng" },
+        { message: "người dùng không tồn tại" },
         { status: 404 }
       );
     }
 
     // Cập nhật thông tin
-    await prisma.users.update({
+    const updatedUser = await prisma.users.update({
       where: { idUsers: user.idUsers },
       data: {
         Hoten: validatedData.fullname,
@@ -44,10 +66,21 @@ export async function PUT(request: NextRequest) {
       },
     });
 
+    // Map database field names to the field names expected by the frontend
+    const mappedUser = {
+      username: updatedUser.Tentaikhoan,
+      fullname: updatedUser.Hoten,
+      email: updatedUser.Email,
+      role: updatedUser.idRole || "user",
+      phone: updatedUser.Sdt,
+      address: updatedUser.Diachi,
+    };
+
     return NextResponse.json({
       message: "Cập nhật thông tin thành công",
+      user: mappedUser,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Update profile error:", error);
 
     if (error instanceof z.ZodError) {
@@ -63,9 +96,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { error: "Đã có lỗi xảy ra khi cập nhật thông tin" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
