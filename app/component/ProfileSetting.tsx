@@ -42,19 +42,23 @@ export default function ProfileSettings({
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
+  const handleUpdateUser = async () => {
     try {
+      setIsLoading(true); // Bắt đầu loading
+      setError(""); // Reset lỗi cũ
+
       console.log("Submitting data:", formData);
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Bạn chưa đăng nhập. Vui lòng thử lại!");
+      }
 
       const response = await fetch("/api/user/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`, // Thêm dòng này
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           username: formData.username,
@@ -67,28 +71,22 @@ export default function ProfileSettings({
       const data = await response.json();
 
       if (!response.ok) {
-        if (data.details) {
-          const errorMessage = data.details
-            .map((err: any) => `${err.field}: ${err.message}`)
-            .join(", ");
-          throw new Error(errorMessage);
-        }
-        throw new Error(
-          data.error || "An error occurred while updating information"
-        );
+        const errorMessage =
+          data.details
+            ?.map((err: any) => `${err.field}: ${err.message}`)
+            .join(", ") ||
+          data.error ||
+          "Có lỗi xảy ra khi cập nhật thông tin.";
+        throw new Error(errorMessage);
       }
 
-      setIsEditing(false);
+      console.log("Cập nhật thành công:", data);
 
-      // Process the returned user data
+      // Nếu API trả về thông tin user mới, cập nhật lại giao diện
       if (data.user) {
-        // Update local storage with new user data
-        updateLocalStorage(data.user);
+        updateLocalStorage(data.user); // Lưu vào localStorage
+        onUpdate(data.user); // Cập nhật parent component
 
-        // Update parent component with new user data
-        onUpdate(data.user);
-
-        // Update local form data state
         setFormData({
           username: data.user.username,
           fullname: data.user.fullname,
@@ -96,11 +94,13 @@ export default function ProfileSettings({
           address: data.user.address || "",
         });
       }
+
+      setIsEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      console.error("Error details:", err);
+      setError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+      console.error("Lỗi chi tiết:", err);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Kết thúc loading
     }
   };
 
@@ -175,7 +175,7 @@ export default function ProfileSettings({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleUpdateUser} className="p-6 space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
               {error}
@@ -297,7 +297,7 @@ export default function ProfileSettings({
               </button>
               <button
                 type="submit"
-                onClick={handleSubmit}
+                onClick={handleUpdateUser}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
                 disabled={isLoading}
               >
