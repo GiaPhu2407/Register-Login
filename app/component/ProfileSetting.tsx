@@ -1,7 +1,7 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Key } from "lucide-react";
-import Link from "next/link";
+import { toast } from "sonner";
 
 interface ProfileSettingsProps {
   userData: {
@@ -33,6 +33,16 @@ export default function ProfileSettings({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Update form data when userData changes
+  useEffect(() => {
+    setFormData({
+      username: userData.username,
+      fullname: userData.fullname,
+      phone: userData.phone || "",
+      address: userData.address || "",
+    });
+  }, [userData]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -42,12 +52,42 @@ export default function ProfileSettings({
     });
   };
 
-  const handleUpdateUser = async () => {
+  const fetchUserData = async () => {
     try {
-      setIsLoading(true); // Bắt đầu loading
-      setError(""); // Reset lỗi cũ
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Bạn chưa đăng nhập. Vui lòng thử lại!");
+      }
 
-      console.log("Submitting data:", formData);
+      const response = await fetch("/api/user/profile", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Không thể tải thông tin người dùng.");
+      }
+
+      // Update with fresh data from server
+      updateLocalStorage(data.user);
+      onUpdate(data.user);
+
+      return data.user;
+    } catch (err) {
+      console.error("Lỗi khi tải dữ liệu người dùng:", err);
+      return null;
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsLoading(true);
+      setError("");
 
       const token = localStorage.getItem("token");
       if (!token) {
@@ -61,7 +101,6 @@ export default function ProfileSettings({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          username: formData.username,
           fullname: formData.fullname,
           phone: formData.phone,
           address: formData.address,
@@ -71,68 +110,69 @@ export default function ProfileSettings({
       const data = await response.json();
 
       if (!response.ok) {
-        const errorMessage =
+        throw new Error(
           data.details
             ?.map((err: any) => `${err.field}: ${err.message}`)
             .join(", ") ||
-          data.error ||
-          "Có lỗi xảy ra khi cập nhật thông tin.";
-        throw new Error(errorMessage);
+            data.error ||
+            data.message ||
+            "Có lỗi xảy ra khi cập nhật thông tin."
+        );
       }
 
-      console.log("Cập nhật thành công:", data);
+      // Update local storage
+      updateLocalStorage(data.user);
 
-      // Nếu API trả về thông tin user mới, cập nhật lại giao diện
-      if (data.user) {
-        updateLocalStorage(data.user); // Lưu vào localStorage
-        onUpdate(data.user); // Cập nhật parent component
+      // Update parent component state
+      onUpdate(data.user);
 
+      // Fetch fresh data from server to ensure everything is in sync
+      const freshData = await fetchUserData();
+
+      if (freshData) {
+        // Update local form data with new values from server
         setFormData({
-          username: data.user.username,
-          fullname: data.user.fullname,
-          phone: data.user.phone || "",
-          address: data.user.address || "",
+          username: freshData.username,
+          fullname: freshData.fullname,
+          phone: freshData.phone || "",
+          address: freshData.address || "",
         });
       }
 
+      // Show success message
+      toast.success("Cập nhật thông tin thành công");
+
       setIsEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
-      console.error("Lỗi chi tiết:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Có lỗi xảy ra.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      console.error("Lỗi cập nhật:", err);
     } finally {
-      setIsLoading(false); // Kết thúc loading
+      setIsLoading(false);
     }
   };
 
-  // Function to update user data in local storage
   const updateLocalStorage = (updatedUser: any) => {
     try {
-      // Get existing user data from localStorage (if any)
       const storedUserData = localStorage.getItem("userData");
-
       if (storedUserData) {
-        // Parse the existing data
-        const userData = JSON.parse(storedUserData);
-
-        // Update only the fields that can be changed
+        const currentData = JSON.parse(storedUserData);
         const updatedUserData = {
-          ...userData,
+          ...currentData,
           username: updatedUser.username,
           fullname: updatedUser.fullname,
           phone: updatedUser.phone,
           address: updatedUser.address,
         };
-
-        // Save the updated data back to localStorage
         localStorage.setItem("userData", JSON.stringify(updatedUserData));
-        console.log("User data updated in localStorage");
       } else {
-        // If no data exists yet, store the complete user object
         localStorage.setItem("userData", JSON.stringify(updatedUser));
-        console.log("User data saved to localStorage for the first time");
       }
     } catch (error) {
-      console.error("Error updating localStorage:", error);
+      console.error("Lỗi cập nhật localStorage:", error);
+      toast.error("Không thể lưu thông tin người dùng");
     }
   };
 
@@ -147,7 +187,6 @@ export default function ProfileSettings({
     setError("");
   };
 
-  // Helper function to get role display name
   const getRoleDisplayName = (roleId: string) => {
     const roleMap: Record<string, string> = {
       admin: "Admin",
@@ -191,11 +230,8 @@ export default function ProfileSettings({
                 type="text"
                 name="username"
                 value={formData.username}
-                onChange={handleChange}
-                readOnly={!isEditing}
-                className={`mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm ${
-                  isEditing ? "bg-white" : "bg-gray-50"
-                }`}
+                readOnly
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50"
               />
             </div>
 
@@ -278,50 +314,50 @@ export default function ProfileSettings({
                 className="mt-1 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 <Key className="w-4 h-4 mr-2" />
-                <Link href={"/ChangePassword"}>Change Password</Link>
+                Change Password
               </button>
             </div>
           </div>
-        </form>
 
-        <div className="px-6 py-4 border-t bg-gray-50 flex justify-end rounded-b-lg space-x-4">
-          {isEditing ? (
-            <>
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
-                disabled={isLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                onClick={handleUpdateUser}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
-                disabled={isLoading}
-              >
-                {isLoading ? "Updating..." : "Save Changes"}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
-              >
-                Edit Profile
-              </button>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
-              >
-                Close
-              </button>
-            </>
-          )}
-        </div>
+          <div className="flex justify-end space-x-4 mt-6">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Updating..." : "Save Changes"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+                >
+                  Edit Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                >
+                  Close
+                </button>
+              </>
+            )}
+          </div>
+        </form>
       </div>
     </div>
   );

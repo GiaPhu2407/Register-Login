@@ -9,13 +9,89 @@ export default function CustomerDashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
   const [showProfile, setShowProfile] = useState(false);
+  // Add a refresh trigger to force reloads
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Load user data from localStorage whenever refreshTrigger changes
   useEffect(() => {
-    const storedUserData = localStorage.getItem("userData");
-    if (storedUserData) {
-      setUserData(JSON.parse(storedUserData));
+    const loadUserData = () => {
+      const storedUserData = localStorage.getItem("userData");
+      if (storedUserData) {
+        setUserData(JSON.parse(storedUserData));
+      } else {
+        // Redirect to login if no user data is found
+        router.push("/Login");
+      }
+    };
+
+    loadUserData();
+
+    // Set up an event listener to detect localStorage changes from other components
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "userData" && e.newValue) {
+        try {
+          setUserData(JSON.parse(e.newValue));
+        } catch (error) {
+          console.error("Error parsing userData from localStorage:", error);
+        }
+      }
+    };
+
+    // Add event listener
+    window.addEventListener("storage", handleStorageChange);
+
+    // Clean up event listener
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [refreshTrigger, router]);
+
+  // Function to refresh user data from API
+  const refreshUserData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        router.push("/Login");
+        return;
+      }
+
+      const response = await fetch("/api/user/profile", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch user data");
+      }
+
+      const data = await response.json();
+
+      // Update localStorage and state
+      localStorage.setItem("userData", JSON.stringify(data.user));
+      setUserData(data.user);
+
+      return data.user;
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+      return null;
     }
-  }, []);
+  };
+
+  const handleProfileUpdate = (updatedData: any) => {
+    // Update local state
+    setUserData(updatedData);
+
+    // Refresh data from server to ensure everything is in sync
+    refreshUserData();
+
+    // Increment refresh trigger to force re-render
+    setRefreshTrigger((prev) => prev + 1);
+
+    // Close profile modal
+    setShowProfile(false);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("userData");
@@ -114,12 +190,13 @@ export default function CustomerDashboard() {
         <ProfileSettings
           userData={userData}
           onClose={() => setShowProfile(false)}
-          onUpdate={function (): void {
-            throw new Error("Function not implemented.");
+          onUpdate={handleProfileUpdate}
+          onChangePassword={() => {
+            // Có thể mở modal đổi mật khẩu hoặc xử lý logic khác
+            // Giữ nguyên đoạn này nếu bạn sẽ triển khai sau
           }}
         />
       )}
-
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* User Profile Summary */}
         <div className="bg-white shadow rounded-lg mb-8">
@@ -135,6 +212,9 @@ export default function CustomerDashboard() {
                   {userData.fullname}
                 </h2>
                 <p className="text-sm text-gray-500">{userData.email}</p>
+                {userData.phone && (
+                  <p className="text-sm text-gray-500">{userData.phone}</p>
+                )}
               </div>
             </div>
           </div>

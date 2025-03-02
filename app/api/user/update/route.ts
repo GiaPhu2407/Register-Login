@@ -11,7 +11,7 @@ const UpdateProfileSchema = z.object({
   address: z.string().min(1, "Địa chỉ không được để trống"),
 });
 
-export async function POST(req: NextRequest) {
+export async function PUT(req: NextRequest) {
   try {
     // Parse và validate input data
     const body = await req.json();
@@ -20,14 +20,14 @@ export async function POST(req: NextRequest) {
     if (!JWT_SECRET) {
       return NextResponse.json(
         { message: "JWT_SECRET chưa được định nghĩa" },
-        { status: 404 }
+        { status: 500 }
       );
     }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { message: "token không tồn tại" },
+        { message: "Token không tồn tại" },
         { status: 401 }
       );
     }
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
 
     if (!username) {
       return NextResponse.json(
-        { message: "người dùng không hợp lệ trong Token" },
-        { status: 404 }
+        { message: "Người dùng không hợp lệ trong Token" },
+        { status: 401 }
       );
     }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "người dùng không tồn tại" },
+        { message: "Người dùng không tồn tại" },
         { status: 404 }
       );
     }
@@ -96,6 +96,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error.name === "JsonWebTokenError") {
+      return NextResponse.json(
+        { message: "Token không hợp lệ" },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Lỗi server", error: error.message },
+      { status: 500 }
+    );
   }
 }
+
+// For backward compatibility
+export { PUT as POST };

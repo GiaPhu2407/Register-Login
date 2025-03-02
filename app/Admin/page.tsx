@@ -77,8 +77,9 @@ export default function AdminDashboard() {
           onClose={() => setShowProfile(false)}
           onUpdate={function (): void {
             throw new Error("Function not implemented.");
-          }}
-        />
+          } } onChangePassword={function (): void {
+            throw new Error("Function not implemented.");
+          } }        />
       )}
 
       {/* Main Content */}
